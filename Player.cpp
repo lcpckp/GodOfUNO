@@ -10,20 +10,19 @@ Player::Player(std::string n)
 	score = 0; name = n;
 }
 
-void Player::receiveCard(UnoCard& c)
+void Player::receiveCard(UnoCard c)
 {
 	hand.push_back(c);
 }
 
-std::vector<UnoCard>* Player::getHand()
+std::vector<UnoCard>& Player::getHand()
 {
-	return &hand;
+	return hand;
 }
 
 void Player::addScore(int s)
 {
 	score += s;
-	std::cout << "score added! score is: " + std::to_string(score) << std::endl;
 }
 
 std::string Player::getName()
@@ -34,4 +33,9 @@ std::string Player::getName()
 int Player::getScore()
 {
 	return score;
+}
+
+void Player::clearHand()
+{
+	hand.clear();
 }

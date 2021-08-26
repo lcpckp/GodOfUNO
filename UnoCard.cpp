@@ -1,246 +1,289 @@
 #include "UnoCard.h"
-
-#include<SFML/Graphics.hpp>
+#include "GameEngine.h"
 #include<iostream>
+#include<cmath>
+#include<SFML/Graphics.hpp>
+
+
 
 UnoCard::UnoCard()
 {
-    sf::Color::Black;
-    cardColor = unoutils::Wild;
-    cardUtility = unoutils::Draw4;
-    value = 50;
-    visible = false; setVisibility(false); //process visual look for visibility
+    cardColor = sf::Color::Black;
+    cardValue = 50;
+    skip = true;
+    reverse = false;
+    drawCards = 4;
+
+    faceDown = false;
 }
 
-UnoCard::UnoCard(int c, int u, int v, sf::Font* f)
+UnoCard::UnoCard(sf::Color c, int v, bool s, bool r, int dc, sf::Font& f)
 {
-    cardColor = static_cast<unoutils::COLOR>(c);
-    cardUtility = static_cast<unoutils::UTILITY>(u);
-    value = v;
-    if (value >= 0)
+    cardColor = c;
+    cardValue = v;
+    skip = s;
+    reverse = r;
+    drawCards = dc;
+
+    faceDown = (cardValue >= 0);
+    
+    //Front of Card
+    baseCard.setSize(sf::Vector2f(GameEngine::CARD_WIDTH, GameEngine::CARD_HEIGHT));
+    baseCard.setPosition(GameEngine::WINDOW_WIDTH / 2, GameEngine::WINDOW_HEIGHT / 2);
+    baseCard.setOutlineColor(sf::Color::White);
+    baseCard.setFillColor(cardColor);
+    baseCard.setOutlineThickness(1);
+
+    /*Rarity based on how many cards you draw
+    switch(dc)
     {
-        setVisibility(false);
+    case 0:
+    case 1:
+        baseCardBack.setOutlineColor(sf::Color::White);
+        break;
+    case 2:
+        baseCardBack.setOutlineColor(sf::Color::Green);
+        break;
+    case 3:
+        baseCardBack.setOutlineColor(sf::Color::Blue);
+        break;
+    case 4:
+        baseCardBack.setOutlineColor(sf::Color::Magenta);
+    default:
+        baseCardBack.setOutlineColor(sf::Color::Yellow);
+    } */
+
+    if (cardColor == sf::Color::Yellow || cardColor == sf::Color::Green)
+    {
+        cardIcon.setFillColor(sf::Color::Black);
     }
     else
     {
-        setVisibility(true);
+        cardIcon.setFillColor(sf::Color::White);
     }
-        
 
-    baseCard.setSize(sf::Vector2f(CARD_WIDTH, CARD_HEIGHT));
-    baseCard.setPosition(0, 0);
-    baseCard.setOutlineColor(sf::Color::White);
-    baseCard.setOutlineThickness(1);
+    cardIcon.setFont(f);
+    cardIcon.setCharacterSize(30);
+    cardIcon.setString(getCardIcon());
 
-    cardName.setFont(*f);
+    sf::FloatRect localTextBounds = cardIcon.getLocalBounds(); //gets bounds of text itself
+    cardIcon.setOrigin(localTextBounds.left + (localTextBounds.width / 2.f), localTextBounds.top + (localTextBounds.height / 2.f)); //set origin to center of text
 
-    sf::FloatRect localTextBounds = cardName.getLocalBounds();
-    cardName.setOrigin(localTextBounds.left + (localTextBounds.width / 2.f), localTextBounds.top + localTextBounds.height / 2.f); //set origin to center of text
+    //Back of Card
+    baseCardBack.setSize(sf::Vector2f(GameEngine::CARD_WIDTH, GameEngine::CARD_HEIGHT));
+    baseCardBack.setPosition(GameEngine::WINDOW_WIDTH / 2, GameEngine::WINDOW_HEIGHT / 2);
+    baseCardBack.setOutlineColor(sf::Color::White);
+    baseCardBack.setFillColor(sf::Color::Black);
+    baseCardBack.setOutlineThickness(1);
+
+    cardIconBack.setFont(f);
+    cardIconBack.setCharacterSize(50);
+    cardIconBack.setFillColor(sf::Color::White);
+    cardIconBack.setString("U");
+
+    localTextBounds = cardIconBack.getLocalBounds();
+    cardIconBack.setOrigin(localTextBounds.left + (localTextBounds.width / 2.f), localTextBounds.top + localTextBounds.height / 2.f); //set origin to center of text
+    
 }
 
 void UnoCard::draw(sf::RenderTarget& target, sf::RenderStates states) const
 {
-    target.draw(baseCard);
-    target.draw(cardName);
+    if (faceDown)
+    {
+        target.draw(baseCardBack);
+        target.draw(cardIconBack);
+    }
+    else
+    {
+        target.draw(baseCard);
+        target.draw(cardIcon);
+    }
 }
 
-int UnoCard::getColor()
+sf::Color UnoCard::getColor()
 {
     return cardColor;
 }
 
-void UnoCard::setColor(int c)
+void UnoCard::setColor(sf::Color c)
 {
-    cardColor = static_cast<unoutils::COLOR>(c);
-    baseCard.setFillColor(this->getSFColor());
+    cardColor = c;
+    baseCard.setFillColor(c);
+    if (cardColor == sf::Color::Yellow || cardColor == sf::Color::Green)
+    {
+        cardIcon.setFillColor(sf::Color::Black);
+    }
+    else
+    {
+        cardIcon.setFillColor(sf::Color::White);
+    }
+}
+
+void UnoCard::setValue(int v)
+{
+    cardValue = v;
 }
 
 int UnoCard::getValue()
 {
-    return value;
+    return cardValue;
 }
 
-int UnoCard::getUtility()
+bool UnoCard::getSkip()
 {
-    return cardUtility;
+    return skip;
 }
 
-std::string UnoCard::getReadableColor()
+bool UnoCard::getReverse()
 {
-    switch (cardColor)
+    return reverse;
+}
+
+int UnoCard::getDrawCards()
+{
+    return drawCards;
+}
+
+std::string UnoCard::getColorString()
+{
+
+    //{ sf::Color(180, 0, 0), sf::Color(220, 170, 0) , sf::Color(0, 180, 0), sf::Color(0, 0, 180) };
+
+    if (cardColor == sf::Color(180, 0, 0))
     {
-    case 0:
-        return "red";
-    case 1:
-        return "yellow";
-    case 2:
-        return "blue";
-    case 3:
-        return "green";
-    case 4:
-        return "wild";
-    default:
-        return "";
+        return "Red";
+    }
+    else if (cardColor == sf::Color(220, 170, 0))
+    {
+        return "Yellow";
+    }
+    else if (cardColor == sf::Color(0, 180, 0))
+    {
+        return "Green";
+    }
+    else if (cardColor == sf::Color(0, 0, 180))
+    {
+        return "Blue";
+    }
+    else if (cardColor == sf::Color::Black)
+    {
+        return "Wild";
+    }
+    else
+    {
+        return "Mystery";
     }
 }
 
-std::string UnoCard::getReadableValue()
+std::string UnoCard::getValueString()
 {
-    switch (value)
-    {
-    case 0:
-        return "0";
-    case 1:
-        return "1";
-    case 2:
-        return "2";
-    case 3:
-        return "3";
-    case 4:
-        return "4";
-    case 5:
-        return "5";
-    case 6:
-        return "6";
-    case 7:
-        return "7";
-    case 8:
-        return "8";
-    case 9:
-        return "9";
-    case 20:
-        return "20";
-    case 50:
-        return "50";
-    default:
-        return "";
-    }
+    return std::to_string(cardValue);
 }
 
-std::string UnoCard::getReadableUtility()
+std::string UnoCard::getUtilityString()
 {
-    switch (cardUtility)
+    std::string s = "";
+    if (skip && !drawCards)
+        s += "Skip";
+    else if (reverse)
+        s += "Reverse";
+    else
     {
-    case 0:
-        return "";
-    case 1:
-        return "skip";
-    case 2:
-        return "reverse";
-    case 3:
-        return "draw two";
-    case 4:
-        return "draw four";
-    default:
-        return "";
+        s += "Draw +" + std::to_string(drawCards);
     }
+    return s;
 }
 
-std::string UnoCard::getReadableCard()
+std::string UnoCard::getCardName()
 {
-    return getReadableColor() + " " + getReadableUtility() + "(" + getReadableValue() + ")";
+    std::string s = getColorString();
+    
+    if (skip || reverse)
+    {
+        s += " " + getUtilityString();
+    }
+    else
+    {
+        if(cardValue <= 9)
+            s += " " + getValueString();
+    }
+
+    return s;
 }
 
 std::string UnoCard::getCardIcon()
 {
-    if (cardUtility != unoutils::None)
-    {
-        switch (cardUtility)
-        {
-        case 1:
-            return "(/)";
-        case 2:
-            return "<>";
-        case 3:
-            return "+2";
-        case 4:
-            return "+4";
-        }
-    }
-    else if(value == 50)
-    {
-        return "W";
-    }
-    else if (value == -1)
-    {
-        return "";
-    }
-    else
-    {
-        return getReadableValue();
-    }
-    return "";
+    std::string i = "";
+    if (skip && !drawCards)
+        i += "( \\ )";
+    else if (reverse)
+        i += "</>";
+    else if (drawCards)
+        i += "+" + std::to_string(drawCards);
+    else if (cardValue <= 9 && cardValue >= 0)
+        i += std::to_string(cardValue);
+    else if (cardValue == 50)
+        i += "W";
+    return i;
 }
-
-sf::RectangleShape UnoCard::getBaseCard()
-{
-    return baseCard;
-}
-
 
 sf::FloatRect UnoCard::getBounds()
 {
     return baseCard.getGlobalBounds();
 }
 
-void UnoCard::setVisibility(bool v)
+void UnoCard::setFaceDown(bool v)
 {
-    visible = v;
-    if (visible)
+    faceDown = v;
+}
+
+bool UnoCard::isFaceDown()
+{
+    return faceDown;
+}
+
+void UnoCard::updatePosition()
+{
+    //sets position to approach the target position
+
+    sf::Vector2f distanceVector = getTargetPosition() - baseCard.getPosition();
+    float length = std::sqrt(distanceVector.x * distanceVector.x + distanceVector.y * distanceVector.y);
+    if (length < 2)
     {
-        baseCard.setFillColor(this->getSFColor());
-        cardName.setCharacterSize(35);
-        cardName.setString(this->getCardIcon());
-        if (cardColor == unoutils::Yellow || cardColor == unoutils::Green)
-        {
-            cardName.setFillColor(sf::Color::Black);
-        }
-        else
-        {
-            cardName.setFillColor(sf::Color::White);
-        }
+        baseCard.setPosition(getTargetPosition());
+        baseCardBack.setPosition(getTargetPosition());
     }
     else
     {
-        cardName.setCharacterSize(50);
-        cardName.setString("U");
-        baseCard.setFillColor(sf::Color::Black);
-        cardName.setFillColor(sf::Color::White);
+        baseCard.setPosition(baseCard.getPosition() + distanceVector * 0.005f);
+        baseCardBack.setPosition(baseCardBack.getPosition() + distanceVector * 0.005f);
     }
+
+    cardIcon.setPosition(baseCard.getPosition() + baseCard.getSize() / 2.f);
+    //sf::Vector2f currPos = baseCard.getGlobalBounds()
+    
+
+
+    //baseCard.setPosition(getTargetPosition());
+    cardIcon.setPosition(baseCard.getPosition() + baseCard.getSize() / 2.f);
+
+    //baseCardBack.setPosition(getTargetPosition());
+    cardIconBack.setPosition(baseCardBack.getPosition() + baseCardBack.getSize() / 2.f);
 }
 
-bool UnoCard::isVisible()
+sf::Vector2f UnoCard::getTargetPosition()
 {
-    return visible;
+    return targetPosition;
 }
 
-sf::Color UnoCard::getSFColor()
+void UnoCard::setTargetPosition(int x, int y)
 {
-    switch (cardColor)
-    {
-    case 0:
-        return sf::Color::Red;
-    case 1:
-        return sf::Color::Yellow;
-    case 2:
-        return sf::Color::Blue;
-    case 3:
-        return sf::Color::Green;
-    case 4:
-        return sf::Color::Black;
-    default:
-        return sf::Color::Black;
-    }
+    targetPosition = sf::Vector2f(x, y);
+    updatePosition();
 }
 
-void UnoCard::updatePosition(int x, int y)
+void UnoCard::setCardIdentity(sf::Color c, int v, bool s, bool r, int dc)
 {
-    baseCard.setPosition(x, y);
-    cardName.setPosition(baseCard.getPosition() + baseCard.getSize() / 2.f);
-    position = sf::Vector2i(x, y);
-}
+    cardColor = c; cardValue = v; skip = s; reverse = r; drawCards = dc;
 
-sf::Vector2i UnoCard::getPos()
-{
-    return position;
 }

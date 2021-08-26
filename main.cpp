@@ -19,7 +19,7 @@
 
 //config.ini
 const int WINDOW_HEIGHT = 600;
-const int WINDOW_WIDTH = 1200;
+const int WINDOW_WIDTH = 1600;
 
 
 int main()
@@ -33,14 +33,25 @@ int main()
 
 	GameEngine game1;
 
+	sf::Clock clock;
+	const sf::Time timePerFrame = sf::seconds(1.f / 60);
+	sf::Time timeSinceLastUpdate = sf::Time::Zero;
+
 	while (mainWindow.isOpen())
 	{
 		game1.pollEvents(mainWindow);
-		game1.updateGame();
+		timeSinceLastUpdate += clock.restart();
+		game1.updateGame(timeSinceLastUpdate);
 		game1.renderGame(mainWindow);
 	}
 
 	return 0;
+
+
+	
+
+
+
 }
 
 
