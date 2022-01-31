@@ -1,6 +1,9 @@
 #pragma once
-#include<iostream>
 #include<SFML/Graphics.hpp>
+#include<SFML/System.hpp>
+#include<SFML/Audio.hpp>
+#include<SFML/Window.hpp>
+
 
 class UnoCard : public sf::Drawable
 {
@@ -27,7 +30,11 @@ private:
 
 public:
 	UnoCard();
-	UnoCard(sf::Color c, int v, bool s, bool r, int dc, sf::Font& f);
+	UnoCard(sf::Color c, int v, bool s, bool r, int dc, int diff, sf::Font& f);
+	//UnoCard(sf::Color c, int v, bool s, bool r, int dc, int diff, sf::Font& f, float x, float y);
+	UnoCard(const UnoCard&) = delete;
+	UnoCard& operator=(const UnoCard&) = delete;
+	~UnoCard() = default;
 
 	sf::FloatRect getBounds();
 	void setFaceDown(bool v);
@@ -48,9 +55,10 @@ public:
 	bool getReverse();
 	int getDrawCards();
 	std::string getCardIcon();
+	sf::RectangleShape getBaseCard();
 
 	//Moves towards target baseCard position
-	void updatePosition();
+	void updatePosition(sf::Time dt);
 
 	//Sets final position of card
 	void setTargetPosition(int x, int y);
@@ -61,5 +69,6 @@ public:
 	std::string getValueString();
 	std::string getUtilityString();
 	std::string getCardName();
+	
 };
 

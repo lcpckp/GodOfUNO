@@ -1,14 +1,55 @@
-#include "GameEngine.h"
-//using vectorPtrUnoCards = std::vector<std::unique_ptr<UnoCard>> ;
+﻿#include "GameEngine.h"
 
-
-GameEngine::GameEngine()
+GameEngine::GameEngine(sf::VideoMode videomode, int diff)
 {
-	scoreTallied = false;
-	game = std::make_unique<UnoGame>();
-	mouseClickPos = sf::Vector2i(0, WINDOW_HEIGHT);
+	game = std::make_unique<UnoGame>(diff);
+	Resources::COMPUTER_DELAY_MS = Resources::COMPUTER_DELAY_BRISK; // Change Speed here
+	videoMode1 = videomode;
 
-	//vectorPtrUnoCards handofcards;
+	if (!Resources::autoPlay) //game settings for human
+	{
+		gameStarted = false;
+		selectedDifficulty = diff;
+	}
+	else //game settings for computer
+	{
+		gameStarted = true;
+		//game = std::make_unique<UnoGame>(diff);
+		game->setDelay(Resources::COMPUTER_DELAY_MS);
+	}
+	
+	mouseClickPos = sf::Vector2i(-5, -5);
+	shuffleRequest = false;
+	pauseRequest = false;
+	gameEndScriptHasRun = false;
+
+	escapeMenuIcon.setTexture(Resources::ESCtexture);
+	escapeMenuIcon.setPosition(20, 30);
+	escapeMenuText.setFont(Resources::CARD_FONT);
+	escapeMenuText.setString("Menu");
+	escapeMenuText.setCharacterSize(Resources::FONT_SIZE_NORMAL);
+	escapeMenuText.setPosition(80, 32);
+
+	automaticTextIcon.setTexture(Resources::Atexture);
+	automaticTextIcon.setPosition(20, 90);
+	automaticText.setFont(Resources::CARD_FONT);
+	automaticText.setString("Auto-Play");
+	automaticText.setCharacterSize(Resources::FONT_SIZE_NORMAL);
+	automaticText.setPosition(80, 92);
+
+	reshuffleText.setFont(Resources::CARD_FONT);
+	reshuffleText.setString("Reshuffle");
+	reshuffleText.setCharacterSize(Resources::FONT_SIZE_NORMAL);
+	reshuffleText.setPosition(Resources::WINDOW_WIDTH / 2 - reshuffleText.getGlobalBounds().width / 2, Resources::WINDOW_HEIGHT / 2 + reshuffleText.getGlobalBounds().height / 2);
+	reshuffleTextIcon.setTexture(Resources::Rtexture);
+	reshuffleTextIcon.setPosition(reshuffleText.getPosition() + sf::Vector2f(-60.f, -5.f));
+
+	musicText.setFont(Resources::CARD_FONT);
+	musicText.setString("Music");
+	musicText.setCharacterSize(Resources::FONT_SIZE_NORMAL);
+	musicText.setPosition(80, 152);
+	musicTextIcon.setTexture(Resources::Mtexture);
+	musicTextIcon.setPosition(20, 150);
 }
 
 void GameEngine::pollEvents(sf::RenderWindow& mainWindow)
@@ -27,185 +68,210 @@ void GameEngine::pollEvents(sf::RenderWindow& mainWindow)
 			break;
 		case sf::Event::KeyPressed:
 			if (ev.key.code == sf::Keyboard::Escape)
-				mainWindow.close();
-			if (ev.key.code == sf::Keyboard::Space)
 			{
-				//Do Nothing
+				pauseRequest = true;
 			}
+			if (ev.key.code == sf::Keyboard::A)
+				Resources::autoPlay = !Resources::autoPlay;
 			if (ev.key.code == sf::Keyboard::R)
-			{
 				shuffleRequest = true;
-			}
+			if (ev.key.code == sf::Keyboard::Up)
+				Resources::COMPUTER_DELAY_MS = Resources::COMPUTER_DELAY_EXTREME;
+			if (ev.key.code == sf::Keyboard::Down)
+				Resources::COMPUTER_DELAY_MS = Resources::COMPUTER_DELAY_BRISK;
+			if (ev.key.code == sf::Keyboard::M)
+				musicRequest = true;
 			break;
 		}
 	}
 }
 
-void GameEngine::updateGame(sf::Time dt)
+int GameEngine::requestingClose()
 {
-	if (/*game->getDrawPile()->size() < 5 ||*/ shuffleRequest)
-	{
-		game->reshuffle();
-		shuffleRequest = false;
-	}
+	return closeRequest;
+}
 
-	if (!game->over())
+std::unique_ptr<State> GameEngine::getNextState()
+{
+	return std::make_unique<PauseMenu>(videoMode1, this);
+}
+
+bool GameEngine::hasNextState()
+{
+	bool pause = pauseRequest;
+	pauseRequest = false;
+	return pause;
+}
+
+void GameEngine::update(sf::Time dt)
+{
+	if (gameStarted)
 	{
-		if (game->isPlayerTurn())
+		
+		game->updateHandValueText();
+		game->updateScoreText();
+		
+		//std::cout << "gamestarted heartbeat" << std::endl;
+		game->updateAllRealCardPos(dt);
+		game->updateAllTargetCardPos();
+
+		if (!game->over())
 		{
-			if (game->colorPickRequired()) //colorPick IS required
+			if (game->getDrawPile().size() <= 10)
 			{
-				//Set the wild card on the discard pile, to the color of the selected button card. (happens inside buttons clicked) If it's Draw4, don't increment turn. (parameter)
-				if (game->buttonsClicked(mouseClickPos.x, mouseClickPos.y, !game->getDiscardPile().back().getSkip()))
-				{
-					game->noPickRequired();
-				}
+				game->reshuffle();
 			}
-			else //Normal turn, colorPick NOT required
+
+			if (game->isPlayerTurn())
 			{
-				if (!game->handCardClicked(mouseClickPos.x, mouseClickPos.y))
+				if (!Resources::autoPlay)
 				{
-					if (!game->getDrawPile().empty())
+					if (game->colorPickRequired()) //colorPick IS required
 					{
-						game->drawClicked(mouseClickPos.x, mouseClickPos.y);
+						//Set the wild card on the discard pile, to the color of the selected button card. (happens inside buttons clicked) If it's Draw4, don't increment turn. (parameter)
+						if (game->buttonsClicked(mouseClickPos.x, mouseClickPos.y, !game->getDiscardPile().back()->getSkip()))
+						{
+							game->noPickRequired();
+						}
+					}
+					else //Normal turn, colorPick NOT required
+					{
+						if (!game->handCardClicked(mouseClickPos.x, mouseClickPos.y))
+						{
+							if (!game->getDrawPile().empty())
+							{
+								game->drawClicked(mouseClickPos.x, mouseClickPos.y);
+								game->updateAllRealCardPos(dt);
+							}
+						}
 					}
 				}
+				else
+				{
+					game->runAdvancedComputerMoveOnPlayer(0);
+				}
+
+			}
+			else
+			{
+				game->runAdvancedComputerMoveOnPlayer(1);
+			}
+			resetGameTimer.restart();
+			gameEndScriptHasRun = false;
+		}
+		else //Game is over
+		{
+			if (!gameEndScriptHasRun)
+			{
+				game->runOnceOnEndGame();
+				gameEndScriptHasRun = true;
+				
+				// Allow for pauses during long simulations
+				if (game->getGameCount() % Resources::PAUSE_EVERY_NUM_GAMES == 0)
+					Resources::DELAY_BETWEEN_GAME_MS = Resources::DELAY_EVERY_NUM_GAMES_MS;
+				else
+					Resources::DELAY_BETWEEN_GAME_MS = Resources::DELAY_BETWEEN_GAMES_DEFAULT;
+			}
+
+			if (shuffleRequest)
+			{
+				game->reshuffle();
+				shuffleRequest = false;
+			}
+
+			if (Resources::autoPlay)
+			{
+				if (!(resetGameTimer.getElapsedTime().asMilliseconds() < Resources::DELAY_BETWEEN_GAME_MS))
+				{
+					game->reshuffle();
+				}
 			}
 		}
-		else
-		{
-			game->runBasicComputerMove();
-		}
 	}
-	else //Game is over - process click to restart game
+	else //game has not started
 	{
-		if (!scoreTallied)
-		{
-			game->tallyScore();
-			scoreTallied = true;
-		}
-		else
-		{
-			scoreTallied = false;
-		}
+		game->setDelay(Resources::COMPUTER_DELAY_MS);
+		gameStarted = true;
 	}
 
-	/* if game is over
-		
-		*/
-	mouseClickPos = sf::Vector2i(0, WINDOW_HEIGHT);
+	mouseClickPos = sf::Vector2i(-500, -500);
+	game->setDelay(Resources::COMPUTER_DELAY_MS);
 }
 
-void GameEngine::drawGame(sf::RenderWindow* window)
+void GameEngine::drawGame(sf::RenderWindow& window)
 {
-	
-	//Player 1 // INDEX 0
-	std::vector<UnoCard>& currHand = game->getPlayers().at(0).getHand();
-	int numCardsInHand = currHand.size();
-
-	float playerHandPos_x = (WINDOW_WIDTH / 2) - (((CARD_WIDTH * numCardsInHand) + (CARD_SPACING * (numCardsInHand - 1))) / 2);
-	float playerHandPos_y = (WINDOW_HEIGHT / 8) * 6.5;
-
-	printCards(window, game->getPlayers().at(0).getHand(), playerHandPos_x, playerHandPos_y);
-
-
-	//Player 2 // INDEX 1
-	std::vector<UnoCard>& compHand = game->getPlayers().at(1).getHand();
-	numCardsInHand = compHand.size();
-
-	int compHandPos_x = (WINDOW_WIDTH / 2) - (((CARD_WIDTH * numCardsInHand) + (CARD_SPACING * (numCardsInHand - 1))) / 2);
-	int compHandPos_y = (WINDOW_HEIGHT / 8);
-	
-
-
-	printCards(window, game->getPlayers().at(1).getHand(), compHandPos_x, compHandPos_y);
-
-	
-
-	//Deck + Discard Pos
-	int deckPos_x = WINDOW_WIDTH / 2;
-	int deckPos_y = (WINDOW_HEIGHT / 8) * 3;
-	int discardPos_x = WINDOW_WIDTH / 2 - CARD_WIDTH - CARD_SPACING * 5;
-	int discardPos_y = deckPos_y;
-
-	printCardsDeck(window, game->getDrawPile(), deckPos_x, deckPos_y);
-	printCardsDiscard(window, game->getDiscardPile(), discardPos_x, discardPos_y);
-
-	//If game is over, print out scores
-	if (game->over())
+	if (gameStarted)
 	{
-		//drawWinText(window, game);
-	}
+		//draws DRAW pile
+		std::vector<std::unique_ptr<UnoCard>>& drawDeck = game->getDrawPile();
+		for (int c = 0; c < drawDeck.size(); c++)
+		{
+			window.draw(*drawDeck.at(c));
+		}
 
-	if (game->colorPickRequired() && game->isPlayerTurn())
-	{
-		//drawButtons(&mainWindow, *game);
-		//Buttons go in the middle of the screen, minus half the width of the 4 buttons plus spacing. On the Y Axis we put it on the 5th eigth
-		int numButtons = game->getButtons().size();
+		//discard pile
+		std::vector<std::unique_ptr<UnoCard>>& discardDeck = game->getDiscardPile();
+		for (int c = 0; c < discardDeck.size(); c++)
+		{
+			window.draw(*discardDeck.at(c));
+		}
+		//Draws buttons if required
+		if (game->colorPickRequired() && game->isPlayerTurn())
+		{
+			for (int b = 0; b < selectedDifficulty; b++)
+			{
+				window.draw(*game->getButtons().at(b));
+			}
+		}
 
-		//					middle of screen  - ((( size of the buttons )   +        (size of spacing))          / 2)
-		int buttonsPos_x = (WINDOW_WIDTH / 2) - (((CARD_WIDTH * numButtons) + (CARD_SPACING * (numButtons - 1))) / 2);
-		int buttonsPos_y = ((WINDOW_HEIGHT / SCREEN_SECTIONS_RESOLUTION) * 5);
+		//draws all player hands
+		for (int p = 0; p < Resources::NUM_PLAYERS; p++)
+		{
+			std::vector<std::unique_ptr<UnoCard>>& currHand = game->getHandOfPlayer(p);
+			//For each card in player's hand
+			for (int c = 0; c < currHand.size(); c++)
+			{
+				window.draw(*currHand.at(c));
+			}
+		}
 
-		printCards(window, game->getButtons(), buttonsPos_x, buttonsPos_y);
+		for (int p = 0; p < Resources::NUM_PLAYERS; p++)
+		{
+			window.draw(game->getHandValueText(p));
+			window.draw(game->getScoreText(p));
+		}
+
+		window.draw(game->getGameCountText());
+		window.draw(automaticText);
+		window.draw(automaticTextIcon);
+		window.draw(escapeMenuIcon);
+		window.draw(escapeMenuText);
+		window.draw(musicText);
+		window.draw(musicTextIcon);
+		if (game->over())
+		{
+			window.draw(reshuffleText);
+			window.draw(reshuffleTextIcon);
+		}
+		window.draw(game->getStatsText());
 	}
 }
 
-void GameEngine::renderGame(sf::RenderWindow& window)
+void GameEngine::render(sf::RenderWindow& window)
 {
 	window.clear(sf::Color(30, 30, 30));
-	drawGame(&window);
+
+	drawGame(window);
+
 	window.display();
 }
 
-//Drawing Helper functions
-
-
-//Print Cards takes starting point in window, and sets position of a set of cards (parameter 'd') to a HAND configuration.
-void GameEngine::printCards(sf::RenderWindow* window, std::vector<UnoCard>& d, int x, int y)
+void GameEngine::depositUnoGame(std::unique_ptr<UnoGame> ug)
 {
-	float offset = CARD_WIDTH + CARD_SPACING;
-	for (int i = 0; i < d.size(); i++)
-	{
-		d.at(i).setTargetPosition(x, y);
-		window->draw(d.at(i));
-		x += offset;
-	}
+	game = std::move(ug);
 }
 
-//printCardsDeck, given a starting point in a window and a set of cards, adjusts the positions of all the cards to be in a DECK configuration.
-void GameEngine::printCardsDeck(sf::RenderWindow* window, std::vector<UnoCard>& d, int x, int y)
+std::unique_ptr<UnoGame> GameEngine::getUnoGame()
 {
-	float offset = CARD_SPACING;
-	x += offset * d.size() + (CARD_WIDTH / 2);
-	for (int i = 0; i < d.size(); i++)
-	{
-		d.at(i).setTargetPosition(x, y);
-		window->draw(d.at(i));
-		x -= offset;
-	}
-}
-
-void GameEngine::printCardsDiscard(sf::RenderWindow* window, std::vector<UnoCard>& d, int x, int y)
-{
-	float offset = CARD_SPACING + 2;
-	x -= offset * d.size();
-	for (int i = 0; i < d.size(); i++)
-	{
-		d.at(i).setTargetPosition(x, y);
-		window->draw(d.at(i));
-		x += offset;
-	}
-}
-
-void GameEngine::drawButtons(sf::RenderWindow* window, UnoGame& game)
-{
-	//Buttons go in the middle of the screen, minus half the width of the 4 buttons plus spacing. On the Y Axis we put it on the 5th eigth
-	int numButtons = game.getButtons().size();
-
-	//					middle of screen  - ((( size of the buttons )   +        (size of spacing))          / 2)
-	int buttonsPos_x = (WINDOW_WIDTH / 2) - (((CARD_WIDTH * numButtons) + (CARD_SPACING * (numButtons - 1))) / 2);
-	int buttonsPos_y = ((WINDOW_HEIGHT / SCREEN_SECTIONS_RESOLUTION) * 5);
-
-	printCards(window, game.getButtons(), buttonsPos_x, buttonsPos_y);
+	return std::move(game);
 }
